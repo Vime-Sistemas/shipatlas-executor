@@ -1,0 +1,7 @@
+{
+  "allowed_runbooks": [
+    "deploy_node_app.sh",
+    "healthcheck.sh"
+  ],
+  "custom_runbooks_dir": "/opt/custom-runbooks"
+}
