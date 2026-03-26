@@ -93,12 +93,6 @@ info "Installing Node dependencies..."
 cd "$INSTALL_DIR"
 npm ci --omit=dev
 
-if ls "$INSTALL_DIR/runbooks/"*.sh &>/dev/null; then
-  chmod +x "$INSTALL_DIR/runbooks/"*.sh
-fi
-
-info "Done"
-
 # Clone or update runbooks repo
 if [ -d "$RUNBOOKS_DIR/.git" ]; then
   info "Updating runbooks..."
@@ -110,6 +104,8 @@ else
 fi
 chmod +x "$RUNBOOKS_DIR/"*.sh
 chown -R "$SERVICE_USER:$SERVICE_USER" "$RUNBOOKS_DIR"
+
+info "Done"
 
 # ── Step 4: Configuration ─────────────────────────────────────────────────────
 
