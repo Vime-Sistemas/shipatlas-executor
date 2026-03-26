@@ -1,8 +1,11 @@
 import { spawn } from 'child_process'
 import { existsSync } from 'fs'
-import { resolve, join, basename } from 'path'
+import { resolve, join, basename, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { getConfig } from './config.js'
 import { startMetrics, type ResourceSnapshot } from './metrics.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export interface DeployPayload {
   deploy_id: string
@@ -36,7 +39,7 @@ export interface RunResult {
   error: string | null
 }
 
-const BUILTIN_DIR = resolve(import.meta.dirname, '../../runbooks')
+const BUILTIN_DIR = resolve(__dirname, '../../runbooks')
 
 const ZERO_RESOURCES: ResourceSnapshot = {
   cpu_peak_percent: 0,
