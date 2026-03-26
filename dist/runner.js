@@ -1,9 +1,11 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import { resolve, join, basename } from 'path';
+import { resolve, join, basename, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { getConfig } from './config.js';
 import { startMetrics } from './metrics.js';
-const BUILTIN_DIR = resolve(import.meta.dirname, '../../runbooks');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const BUILTIN_DIR = resolve(__dirname, '../../runbooks');
 const ZERO_RESOURCES = {
     cpu_peak_percent: 0,
     cpu_avg_percent: 0,
