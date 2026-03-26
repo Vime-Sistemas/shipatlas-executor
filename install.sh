@@ -103,9 +103,6 @@ info "Installing executor dependencies..."
 cd "$INSTALL_DIR/executor"
 npm ci --omit=dev
 
-info "Building..."
-npm run build
-
 info "Setting runbook permissions..."
 chmod +x "$INSTALL_DIR/runbooks/"*.sh
 
@@ -156,8 +153,21 @@ if [ -f "$ENV_FILE" ]; then
   warn ".env already exists — skipping secrets setup."
 else
   echo ""
-  SHARED_SECRET=$(askpass "EXECUTOR_SHARED_SECRET (from Cloudflare worker secrets):")
-  HMAC_KEY=$(askpass "EXECUTOR_HMAC_KEY (from Cloudflare worker secrets):")
+  echo "  Application settings (used by the runbooks):"
+  APP_DIR=$(ask "APP_DIR — full path to the application to be deployed (e.g. /var/www/flow-v2):")
+  if [ -z "$APP_DIR" ]; then error "APP_DIR is required."; fi
+  if [ ! -d "$APP_DIR" ]; then warn "Directory '$APP_DIR' does not exist yet — make sure it exists before the first deploy."; fi
+
+  APP_SERVICE=$(ask "SERVICE_NAME — systemd or pm2 service name to restart (e.g. flow-v2):")
+  if [ -z "$APP_SERVICE" ]; then error "SERVICE_NAME is required."; fi
+
+  PROCESS_MANAGER=$(ask "PROCESS_MANAGER — how the service is managed [systemd/pm2] [systemd]:")
+  PROCESS_MANAGER="${PROCESS_MANAGER:-systemd}"
+
+  echo ""
+  echo "  Executor secrets (from Cloudflare worker):"
+  SHARED_SECRET=$(askpass "EXECUTOR_SHARED_SECRET:")
+  HMAC_KEY=$(askpass "EXECUTOR_HMAC_KEY:")
   PORT=$(ask "Port to listen on [9000]:")
   PORT="${PORT:-9000}"
 
@@ -167,6 +177,9 @@ REDIS_URL=$REDIS_URL
 EXECUTOR_SHARED_SECRET=$SHARED_SECRET
 EXECUTOR_HMAC_KEY=$HMAC_KEY
 EXECUTOR_CONFIG=$CONFIG_FILE
+APP_DIR=$APP_DIR
+SERVICE_NAME=$APP_SERVICE
+PROCESS_MANAGER=$PROCESS_MANAGER
 EOF
 
   chmod 600 "$ENV_FILE"
