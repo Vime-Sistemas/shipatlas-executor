@@ -2,16 +2,8 @@
 set -euo pipefail
 
 # ShipAtlas Executor — install script
-# Run as root or a user with sudo access
-#
-# Usage (code already on server):
-#   sudo INSTALL_DIR=/path/to/shipatlas bash install.sh
-#
-# Usage (clone from remote):
-#   sudo REPO_URL=https://github.com/org/shipatlas bash install.sh
+# Run as root: sudo bash install.sh
 
-REPO_URL="${REPO_URL:-}"
-INSTALL_DIR="${INSTALL_DIR:-}"
 SERVICE_USER="${SERVICE_USER:-shipatlas}"
 SERVICE_NAME="shipatlas-executor"
 NODE_MIN_VERSION=20
@@ -19,23 +11,31 @@ NODE_MIN_VERSION=20
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 info()    { echo -e "${GREEN}[install]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[install]${NC} $*"; }
 error()   { echo -e "${RED}[install]${NC} $*" >&2; exit 1; }
-ask()     { read -rp "$(echo -e "${YELLOW}[?]${NC} $* ")" REPLY; echo "$REPLY"; }
-askpass() { read -rsp "$(echo -e "${YELLOW}[?]${NC} $* ")" REPLY; echo; echo "$REPLY"; }
+step()    { echo -e "\n${CYAN}──────────────────────────────────────${NC}"; echo -e "${CYAN}$*${NC}"; echo -e "${CYAN}──────────────────────────────────────${NC}"; }
+ask()     { read -rp "$(echo -e "${YELLOW}  → ${NC}$* ")" REPLY; echo "$REPLY"; }
+askpass() { read -rsp "$(echo -e "${YELLOW}  → ${NC}$* ")" REPLY; echo; echo "$REPLY"; }
 
-# ── Checks ───────────────────────────────────────────────────────────────────
+# ── Root check ────────────────────────────────────────────────────────────────
 
 if [ "$EUID" -ne 0 ]; then
   error "Run as root: sudo bash install.sh"
 fi
 
-info "Checking dependencies..."
+echo ""
+echo -e "${CYAN}  ShipAtlas Executor — Setup Wizard${NC}"
+echo ""
 
-for cmd in git node npm redis-cli systemctl curl; do
+# ── Step 1: Dependencies ──────────────────────────────────────────────────────
+
+step "Step 1/6 — Checking dependencies"
+
+for cmd in git node npm systemctl curl jq; do
   if ! command -v "$cmd" &>/dev/null; then
     error "'$cmd' is not installed. Please install it and re-run."
   fi
@@ -46,74 +46,97 @@ if [ "$NODE_VERSION" -lt "$NODE_MIN_VERSION" ]; then
   error "Node.js $NODE_MIN_VERSION+ required (found $NODE_VERSION)"
 fi
 
-# Check Redis is reachable
-REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
-if ! redis-cli -u "$REDIS_URL" ping &>/dev/null; then
-  error "Redis is not reachable at $REDIS_URL. Start Redis or set REDIS_URL and re-run."
+info "Node.js $NODE_VERSION, git $(git --version | cut -d' ' -f3) — OK"
+
+# ── Step 2: Redis ─────────────────────────────────────────────────────────────
+
+step "Step 2/6 — Redis"
+
+if ! command -v redis-cli &>/dev/null; then
+  error "'redis-cli' is not installed. Install Redis and re-run."
 fi
 
-info "All dependencies OK."
+REDIS_URL=$(ask "Redis URL [redis://localhost:6379]:")
+REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 
-# ── Resolve install directory ─────────────────────────────────────────────────
+if ! redis-cli -u "$REDIS_URL" ping &>/dev/null; then
+  error "Redis is not reachable at $REDIS_URL"
+fi
 
-if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR/executor" ]; then
-  # Code already present at the given path — use it as-is, no git operations
+info "Redis OK at $REDIS_URL"
+
+# ── Step 3: Source code ───────────────────────────────────────────────────────
+
+step "Step 3/6 — Source code"
+
+echo "  How is the ShipAtlas code available on this server?"
+echo "  [1] Already cloned — I have the code at a local path"
+echo "  [2] Clone now from a public GitHub repository"
+echo ""
+SOURCE_CHOICE=$(ask "Choose [1/2]:")
+
+if [ "$SOURCE_CHOICE" = "1" ]; then
+  INSTALL_DIR=$(ask "Full path to the shipatlas directory (must contain executor/):")
+  if [ ! -d "$INSTALL_DIR/executor" ]; then
+    error "Directory '$INSTALL_DIR/executor' not found. Make sure the path is correct."
+  fi
   info "Using existing code at $INSTALL_DIR"
 else
-  # INSTALL_DIR either not set or doesn't contain executor/ — need a fresh clone
-  if [ -z "$INSTALL_DIR" ]; then
-    INSTALL_DIR=$(ask "Path to clone into [/opt/shipatlas-executor]:")
-    INSTALL_DIR="${INSTALL_DIR:-/opt/shipatlas-executor}"
+  INSTALL_DIR=$(ask "Where to clone to [/opt/shipatlas]:")
+  INSTALL_DIR="${INSTALL_DIR:-/opt/shipatlas}"
+  REPO_URL=$(ask "Repository URL (HTTPS public, e.g. https://github.com/org/shipatlas):")
+  if [ -z "$REPO_URL" ]; then
+    error "Repository URL is required."
   fi
-
-  if [ -d "$INSTALL_DIR/executor" ]; then
-    # Rechecked after prompt — already there
-    info "Using existing code at $INSTALL_DIR"
-  else
-    if [ -z "$REPO_URL" ]; then
-      REPO_URL=$(ask "Git repository URL (HTTPS, public repo):")
-    fi
-    info "Cloning repository to $INSTALL_DIR..."
-    git clone "$REPO_URL" "$INSTALL_DIR"
+  info "Cloning $REPO_URL → $INSTALL_DIR..."
+  git clone "$REPO_URL" "$INSTALL_DIR"
+  if [ ! -d "$INSTALL_DIR/executor" ]; then
+    error "Cloned repo does not contain an 'executor/' directory."
   fi
 fi
 
-# ── Install Node deps ─────────────────────────────────────────────────────────
+# ── Step 4: Build ─────────────────────────────────────────────────────────────
+
+step "Step 4/6 — Build"
 
 info "Installing executor dependencies..."
 cd "$INSTALL_DIR/executor"
 npm ci --omit=dev
 
-info "Building executor..."
+info "Building..."
 npm run build
-
-# ── Make runbooks executable ──────────────────────────────────────────────────
 
 info "Setting runbook permissions..."
 chmod +x "$INSTALL_DIR/runbooks/"*.sh
 
-# ── System user ──────────────────────────────────────────────────────────────
-
+# System user
 if ! id "$SERVICE_USER" &>/dev/null; then
   info "Creating system user '$SERVICE_USER'..."
   useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
-
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 
-# ── config.json ───────────────────────────────────────────────────────────────
+# ── Step 5: Configuration ─────────────────────────────────────────────────────
+
+step "Step 5/6 — Configuration"
 
 CONFIG_FILE="$INSTALL_DIR/executor/config.json"
 
-if [ ! -f "$CONFIG_FILE" ]; then
-  info "Creating config.json..."
-  echo "Available built-in runbooks:"
-  ls "$INSTALL_DIR/runbooks/"*.sh | xargs -I{} basename {}
+if [ -f "$CONFIG_FILE" ]; then
+  warn "config.json already exists — skipping runbook setup."
+else
+  echo ""
+  echo "  Available built-in runbooks:"
+  ls "$INSTALL_DIR/runbooks/"*.sh | xargs -I{} basename {} | sed 's/^/    /'
+  echo ""
 
   ALLOWED=$(ask "Which runbooks to allow? (comma-separated, e.g. deploy_node_app.sh,healthcheck.sh):")
-  CUSTOM_DIR=$(ask "Custom runbooks directory? (leave blank to skip):")
+  if [ -z "$ALLOWED" ]; then
+    error "At least one runbook must be allowed."
+  fi
 
-  # Build JSON array from comma-separated input
+  CUSTOM_DIR=$(ask "Custom runbooks directory? (full path, leave blank to skip):")
+
   RUNBOOKS_JSON=$(echo "$ALLOWED" | tr ',' '\n' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | jq -R . | jq -s .)
 
   if [ -n "$CUSTOM_DIR" ]; then
@@ -125,17 +148,14 @@ if [ ! -f "$CONFIG_FILE" ]; then
   fi
 
   info "config.json created."
-else
-  warn "config.json already exists — skipping."
 fi
-
-# ── .env ─────────────────────────────────────────────────────────────────────
 
 ENV_FILE="$INSTALL_DIR/executor/.env"
 
-if [ ! -f "$ENV_FILE" ]; then
-  info "Configuring environment..."
-
+if [ -f "$ENV_FILE" ]; then
+  warn ".env already exists — skipping secrets setup."
+else
+  echo ""
   SHARED_SECRET=$(askpass "EXECUTOR_SHARED_SECRET (from Cloudflare worker secrets):")
   HMAC_KEY=$(askpass "EXECUTOR_HMAC_KEY (from Cloudflare worker secrets):")
   PORT=$(ask "Port to listen on [9000]:")
@@ -146,21 +166,20 @@ PORT=$PORT
 REDIS_URL=$REDIS_URL
 EXECUTOR_SHARED_SECRET=$SHARED_SECRET
 EXECUTOR_HMAC_KEY=$HMAC_KEY
-EXECUTOR_CONFIG=$INSTALL_DIR/executor/config.json
+EXECUTOR_CONFIG=$CONFIG_FILE
 EOF
 
   chmod 600 "$ENV_FILE"
   chown "$SERVICE_USER:$SERVICE_USER" "$ENV_FILE"
   info ".env created."
-else
-  warn ".env already exists — skipping."
 fi
 
-# ── systemd service ───────────────────────────────────────────────────────────
+# ── Step 6: Systemd ───────────────────────────────────────────────────────────
+
+step "Step 6/6 — Systemd service"
 
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
-info "Creating systemd service..."
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=ShipAtlas Executor
@@ -187,14 +206,19 @@ systemctl restart "$SERVICE_NAME"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
+PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || echo "<server-ip>")
+PORT=$(grep PORT "$ENV_FILE" | cut -d= -f2)
+
 echo ""
-info "Installation complete!"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}  Installation complete!${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "  Service:  $SERVICE_NAME"
-echo "  Status:   $(systemctl is-active $SERVICE_NAME)"
-echo "  Logs:     journalctl -u $SERVICE_NAME -f"
-echo "  Config:   $CONFIG_FILE"
-echo "  Port:     $(grep PORT $ENV_FILE | cut -d= -f2)"
+echo "  Service:      $SERVICE_NAME"
+echo "  Status:       $(systemctl is-active $SERVICE_NAME)"
+echo "  Logs:         journalctl -u $SERVICE_NAME -f"
 echo ""
-warn "Make sure port $(grep PORT $ENV_FILE | cut -d= -f2) is accessible from the Cloudflare worker IP ranges."
-warn "Set executor_url in ShipAtlas to: http://$(curl -s ifconfig.me):$(grep PORT $ENV_FILE | cut -d= -f2)"
+echo -e "${YELLOW}  Next step — set this in ShipAtlas project:${NC}"
+echo -e "${CYAN}  executor_url = http://$PUBLIC_IP:$PORT${NC}"
+echo ""
+warn "Make sure port $PORT is open for Cloudflare IP ranges."
