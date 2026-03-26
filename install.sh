@@ -6,8 +6,8 @@ set -euo pipefail
 
 SHIPATLAS_REPO="https://github.com/Vime-Sistemas/shipatlas-executor"
 RUNBOOKS_REPO="https://github.com/Vime-Sistemas/shipatlas-runbooks"
-RUNBOOKS_DIR="$INSTALL_DIR/runbooks"
 INSTALL_DIR="/opt/shipatlas"
+RUNBOOKS_DIR="$INSTALL_DIR/runbooks"
 SERVICE_USER="shipatlas"
 SERVICE_NAME="shipatlas-executor"
 NODE_MIN_VERSION=20
