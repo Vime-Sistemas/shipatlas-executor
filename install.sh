@@ -71,6 +71,7 @@ step "3/5  Installing code to $INSTALL_DIR"
 
 if [ -d "$INSTALL_DIR/.git" ]; then
   info "Already installed — pulling latest..."
+  git config --global --add safe.directory "$INSTALL_DIR"
   git -C "$INSTALL_DIR" pull --ff-only
 else
   info "Cloning..."
@@ -101,6 +102,7 @@ info "Done"
 # Clone or update runbooks repo
 if [ -d "$RUNBOOKS_DIR/.git" ]; then
   info "Updating runbooks..."
+  git config --global --add safe.directory "$RUNBOOKS_DIR"
   git -C "$RUNBOOKS_DIR" pull --ff-only
 else
   info "Cloning runbooks..."
