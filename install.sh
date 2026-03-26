@@ -76,7 +76,7 @@ echo ""
 SOURCE_CHOICE=$(ask "Choose [1/2]:")
 
 if [ "$SOURCE_CHOICE" = "1" ]; then
-  INSTALL_DIR=$(ask "Full path to the shipatlas directory (must contain executor/):")
+  INSTALL_DIR=$(ask "Full path to the ShipAtlas repo (the directory that contains executor/, runbooks/, etc.):")
   if [ ! -d "$INSTALL_DIR/executor" ]; then
     error "Directory '$INSTALL_DIR/executor' not found. Make sure the path is correct."
   fi
