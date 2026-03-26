@@ -4,13 +4,14 @@ set -euo pipefail
 # ShipAtlas Executor — install script
 # Run as root or a user with sudo access
 #
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/.../install.sh | bash
-#   or
-#   bash install.sh
+# Usage (code already on server):
+#   sudo INSTALL_DIR=/path/to/shipatlas bash install.sh
+#
+# Usage (clone from remote):
+#   sudo REPO_URL=https://github.com/org/shipatlas bash install.sh
 
 REPO_URL="${REPO_URL:-}"
-INSTALL_DIR="${INSTALL_DIR:-/opt/shipatlas-executor}"
+INSTALL_DIR="${INSTALL_DIR:-}"
 SERVICE_USER="${SERVICE_USER:-shipatlas}"
 SERVICE_NAME="shipatlas-executor"
 NODE_MIN_VERSION=20
@@ -53,18 +54,29 @@ fi
 
 info "All dependencies OK."
 
-# ── Clone / update repo ───────────────────────────────────────────────────────
+# ── Resolve install directory ─────────────────────────────────────────────────
 
-if [ -z "$REPO_URL" ]; then
-  REPO_URL=$(ask "Git repository URL (SSH or HTTPS):")
-fi
-
-if [ -d "$INSTALL_DIR/.git" ]; then
-  info "Repository already exists at $INSTALL_DIR — pulling latest..."
-  git -C "$INSTALL_DIR" pull
+if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR/executor" ]; then
+  # Code already present at the given path — use it as-is
+  info "Using existing code at $INSTALL_DIR"
 else
-  info "Cloning repository to $INSTALL_DIR..."
-  git clone "$REPO_URL" "$INSTALL_DIR"
+  # Need to clone
+  if [ -z "$INSTALL_DIR" ]; then
+    INSTALL_DIR=$(ask "Path where code should be installed [/opt/shipatlas-executor]:")
+    INSTALL_DIR="${INSTALL_DIR:-/opt/shipatlas-executor}"
+  fi
+
+  if [ -z "$REPO_URL" ]; then
+    REPO_URL=$(ask "Git repository URL (SSH or HTTPS):")
+  fi
+
+  if [ -d "$INSTALL_DIR/.git" ]; then
+    info "Repository already exists at $INSTALL_DIR — pulling latest..."
+    git -C "$INSTALL_DIR" pull
+  else
+    info "Cloning repository to $INSTALL_DIR..."
+    git clone "$REPO_URL" "$INSTALL_DIR"
+  fi
 fi
 
 # ── Install Node deps ─────────────────────────────────────────────────────────
