@@ -57,8 +57,8 @@ info "OK"
 
 step "2/5  Redis"
 
-REDIS_URL=$(ask "Redis URL [redis://localhost:6379]:")
-REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
+REDIS_URL_INPUT=$(ask "Redis URL [redis://localhost:6379]:")
+REDIS_URL="${REDIS_URL_INPUT:-redis://localhost:6379}"
 
 redis-cli -u "$REDIS_URL" ping &>/dev/null || error "Redis not reachable at $REDIS_URL"
 info "Connected"
