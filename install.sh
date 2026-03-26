@@ -57,23 +57,22 @@ info "All dependencies OK."
 # ── Resolve install directory ─────────────────────────────────────────────────
 
 if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR/executor" ]; then
-  # Code already present at the given path — use it as-is
+  # Code already present at the given path — use it as-is, no git operations
   info "Using existing code at $INSTALL_DIR"
 else
-  # Need to clone
+  # INSTALL_DIR either not set or doesn't contain executor/ — need a fresh clone
   if [ -z "$INSTALL_DIR" ]; then
-    INSTALL_DIR=$(ask "Path where code should be installed [/opt/shipatlas-executor]:")
+    INSTALL_DIR=$(ask "Path to clone into [/opt/shipatlas-executor]:")
     INSTALL_DIR="${INSTALL_DIR:-/opt/shipatlas-executor}"
   fi
 
-  if [ -z "$REPO_URL" ]; then
-    REPO_URL=$(ask "Git repository URL (SSH or HTTPS):")
-  fi
-
-  if [ -d "$INSTALL_DIR/.git" ]; then
-    info "Repository already exists at $INSTALL_DIR — pulling latest..."
-    git -C "$INSTALL_DIR" pull
+  if [ -d "$INSTALL_DIR/executor" ]; then
+    # Rechecked after prompt — already there
+    info "Using existing code at $INSTALL_DIR"
   else
+    if [ -z "$REPO_URL" ]; then
+      REPO_URL=$(ask "Git repository URL (HTTPS, public repo):")
+    fi
     info "Cloning repository to $INSTALL_DIR..."
     git clone "$REPO_URL" "$INSTALL_DIR"
   fi
