@@ -5,6 +5,8 @@ set -euo pipefail
 # Run as root: sudo bash install.sh
 
 SHIPATLAS_REPO="https://github.com/Vime-Sistemas/shipatlas-executor"
+RUNBOOKS_REPO="https://github.com/Vime-Sistemas/shipatlas-runbooks"
+RUNBOOKS_DIR="$INSTALL_DIR/runbooks"
 INSTALL_DIR="/opt/shipatlas"
 SERVICE_USER="shipatlas"
 SERVICE_NAME="shipatlas-executor"
@@ -95,6 +97,17 @@ if ls "$INSTALL_DIR/runbooks/"*.sh &>/dev/null; then
 fi
 
 info "Done"
+
+# Clone or update runbooks repo
+if [ -d "$RUNBOOKS_DIR/.git" ]; then
+  info "Updating runbooks..."
+  git -C "$RUNBOOKS_DIR" pull --ff-only
+else
+  info "Cloning runbooks..."
+  git clone "$RUNBOOKS_REPO" "$RUNBOOKS_DIR"
+fi
+chmod +x "$RUNBOOKS_DIR/"*.sh
+chown -R "$SERVICE_USER:$SERVICE_USER" "$RUNBOOKS_DIR"
 
 # ── Step 4: Configuration ─────────────────────────────────────────────────────
 
